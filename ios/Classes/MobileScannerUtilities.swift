@@ -1,52 +1,12 @@
-//
-//  Util.swift
-//  camerax
-//
-//  Created by 闫守旺 on 2021/2/6.
-//
-
 import AVFoundation
-import Flutter
 import Foundation
 import MLKitBarcodeScanning
-
-extension Error {
-    func throwNative(_ result: FlutterResult) {
-        let error = FlutterError(code: localizedDescription, message: nil, details: nil)
-        result(error)
-    }
-}
 
 extension CVBuffer {
     var image: UIImage {
         let ciImage = CIImage(cvPixelBuffer: self)
         let cgImage = CIContext().createCGImage(ciImage, from: ciImage.extent)
-        return UIImage(cgImage: cgImage!, scale: 1.0, orientation: UIImage.Orientation.left)
-    }
-    
-    var image1: UIImage {
-        // Lock the base address of the pixel buffer
-        CVPixelBufferLockBaseAddress(self, CVPixelBufferLockFlags.readOnly)
-        // Get the number of bytes per row for the pixel buffer
-        let baseAddress = CVPixelBufferGetBaseAddress(self)
-        // Get the number of bytes per row for the pixel buffer
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(self)
-        // Get the pixel buffer width and height
-        let width = CVPixelBufferGetWidth(self)
-        let height = CVPixelBufferGetHeight(self)
-        // Create a device-dependent RGB color space
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        // Create a bitmap graphics context with the sample buffer data
-        var bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue
-        bitmapInfo |= CGImageAlphaInfo.premultipliedFirst.rawValue & CGBitmapInfo.alphaInfoMask.rawValue
-        //let bitmapInfo: UInt32 = CGBitmapInfo.alphaInfoMask.rawValue
-        let context = CGContext(data: baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo)
-        // Create a Quartz image from the pixel data in the bitmap graphics context
-        let quartzImage = context?.makeImage()
-        // Unlock the pixel buffer
-        CVPixelBufferUnlockBaseAddress(self, CVPixelBufferLockFlags.readOnly)
-        // Create an image object from the Quartz image
-        return  UIImage(cgImage: quartzImage!)
+        return UIImage(cgImage: cgImage!)
     }
 }
 
@@ -69,8 +29,27 @@ extension UIDeviceOrientation {
 
 extension Barcode {
     var data: [String: Any?] {
-        let corners = cornerPoints?.map({$0.cgPointValue.data})
-        return ["corners": corners, "format": format.rawValue, "rawBytes": rawData, "rawValue": rawValue, "type": valueType.rawValue, "calendarEvent": calendarEvent?.data, "contactInfo": contactInfo?.data, "driverLicense": driverLicense?.data, "email": email?.data, "geoPoint": geoPoint?.data, "phone": phone?.data, "sms": sms?.data, "url": url?.data, "wifi": wifi?.data, "displayValue": displayValue]
+        return [
+            "calendarEvent": calendarEvent?.data,
+            "contactInfo": contactInfo?.data,
+            "corners": cornerPoints?.map({$0.cgPointValue.data}),
+            "displayValue": displayValue,
+            "driverLicense": driverLicense?.data,
+            "email": email?.data,
+            "format": format.rawValue,
+            "geoPoint": geoPoint?.data,
+            "phone": phone?.data,
+            "rawBytes": rawData,
+            "rawValue": rawValue,
+            "size": frame.isNull ? nil : [
+                "width": frame.width,
+                "height": frame.height,
+            ],
+            "sms": sms?.data,
+            "type": valueType.rawValue,
+            "url": url?.data,
+            "wifi": wifi?.data,
+        ]
     }
 }
 

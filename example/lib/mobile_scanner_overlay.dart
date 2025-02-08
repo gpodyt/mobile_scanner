@@ -1,228 +1,156 @@
-//TODO: Create example with scanner overlay
+import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:mobile_scanner_example/scanned_barcode_label.dart';
+import 'package:mobile_scanner_example/scanner_button_widgets.dart';
+import 'package:mobile_scanner_example/scanner_error_widget.dart';
 
-// import 'dart:ui';
-//
-// import 'package:flutter/material.dart';
-// import 'package:mobile_scanner/mobile_scanner.dart';
-//
-// void main() {
-//   runApp(const AnalyzeView());
-// }
-//
-// class AnalyzeView extends StatefulWidget {
-//   const AnalyzeView({Key? key}) : super(key: key);
-//
-//   @override
-//   _AnalyzeViewState createState() => _AnalyzeViewState();
-// }
-//
-// class _AnalyzeViewState extends State<AnalyzeView>
-//     with SingleTickerProviderStateMixin {
-//   List<Offset> points = [];
-//
-//   // CameraController cameraController = CameraController(context, width: 320, height: 150);
-//
-//   String? barcode;
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return MaterialApp(
-//       home: Scaffold(
-//         body: Builder(builder: (context) {
-//           return Stack(
-//             children: [
-//               MobileScanner(
-//                   // fitScreen: false,
-//                   // controller: cameraController,
-//                   onDetect: (barcode, args) {
-//                 if (this.barcode != barcode.rawValue) {
-//                   this.barcode = barcode.rawValue;
-//                   if (barcode.corners != null) {
-//                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-//                       content: Text(barcode.rawValue),
-//                       duration: const Duration(milliseconds: 200),
-//                       animation: null,
-//                     ));
-//                     setState(() {
-//                       final List<Offset> points = [];
-//                       // double factorWidth = args.size.width / 520;
-//                       // double factorHeight = wanted / args.size.height;
-//                       final size = MediaQuery.of(context).devicePixelRatio;
-//                       debugPrint('Size: ${barcode.corners}');
-//                       for (var point in barcode.corners!) {
-//                         final adjustedWith = point.dx;
-//                         final adjustedHeight = point.dy;
-//                         points.add(
-//                             Offset(adjustedWith / size, adjustedHeight / size));
-//                         // points.add(Offset((point.dx ) / size,
-//                         //     (point.dy) / size));
-//                         // final differenceWidth = (args.wantedSize!.width - args.size.width) / 2;
-//                         // final differenceHeight = (args.wantedSize!.height - args.size.height) / 2;
-//                         // points.add(Offset((point.dx + differenceWidth) / size,
-//                         //     (point.dy + differenceHeight) / size));
-//                       }
-//                       this.points = points;
-//                     });
-//                   }
-//                 }
-//                 // Default 640 x480
-//               }),
-//               CustomPaint(
-//                 painter: OpenPainter(points),
-//               ),
-//               // Container(
-//               //   alignment: Alignment.bottomCenter,
-//               //   margin: EdgeInsets.only(bottom: 80.0),
-//               //   child: IconButton(
-//               //     icon: ValueListenableBuilder(
-//               //       valueListenable: cameraController.torchState,
-//               //       builder: (context, state, child) {
-//               //         final color =
-//               //             state == TorchState.off ? Colors.grey : Colors.white;
-//               //         return Icon(Icons.bolt, color: color);
-//               //       },
-//               //     ),
-//               //     iconSize: 32.0,
-//               //     onPressed: () => cameraController.torch(),
-//               //   ),
-//               // ),
-//             ],
-//           );
-//         }),
-//       ),
-//     );
-//   }
-//
-//   @override
-//   void dispose() {
-//     // cameraController.dispose();
-//     super.dispose();
-//   }
-//
-//   void display(Barcode barcode) {
-//     Navigator.of(context).popAndPushNamed('display', arguments: barcode);
-//   }
-// }
-//
-// class OpenPainter extends CustomPainter {
-//   final List<Offset> points;
-//
-//   OpenPainter(this.points);
-//   @override
-//   void paint(Canvas canvas, Size size) {
-//     var paint1 = Paint()
-//       ..color = const Color(0xff63aa65)
-//       ..strokeWidth = 10;
-//     //draw points on canvas
-//     canvas.drawPoints(PointMode.points, points, paint1);
-//   }
-//
-//   @override
-//   bool shouldRepaint(CustomPainter oldDelegate) => true;
-// }
-//
-// class OpacityCurve extends Curve {
-//   @override
-//   double transform(double t) {
-//     if (t < 0.1) {
-//       return t * 10;
-//     } else if (t <= 0.9) {
-//       return 1.0;
-//     } else {
-//       return (1.0 - t) * 10;
-//     }
-//   }
-// }
-//
-// // import 'package:flutter/material.dart';
-// // import 'package:flutter/rendering.dart';
-// // import 'package:mobile_scanner/mobile_scanner.dart';
-// //
-// // void main() {
-// //   debugPaintSizeEnabled = false;
-// //   runApp(HomePage());
-// // }
-// //
-// // class HomePage extends StatefulWidget {
-// //   @override
-// //   HomeState createState() => HomeState();
-// // }
-// //
-// // class HomeState extends State<HomePage> {
-// //   @override
-// //   Widget build(BuildContext context) {
-// //     return MaterialApp(home: MyApp());
-// //   }
-// // }
-// //
-// // class MyApp extends StatefulWidget {
-// //   @override
-// //   _MyAppState createState() => _MyAppState();
-// // }
-// //
-// // class _MyAppState extends State<MyApp> {
-// //   String? qr;
-// //   bool camState = false;
-// //
-// //   @override
-// //   initState() {
-// //     super.initState();
-// //   }
-// //
-// //   @override
-// //   Widget build(BuildContext context) {
-// //     return Scaffold(
-// //       appBar: AppBar(
-// //         title: Text('Plugin example app'),
-// //       ),
-// //       body: Center(
-// //         child: Column(
-// //           crossAxisAlignment: CrossAxisAlignment.center,
-// //           mainAxisAlignment: MainAxisAlignment.center,
-// //           children: <Widget>[
-// //             Expanded(
-// //                 child: camState
-// //                     ? Center(
-// //                   child: SizedBox(
-// //                     width: 300.0,
-// //                     height: 600.0,
-// //                     child: MobileScanner(
-// //                       onError: (context, error) => Text(
-// //                         error.toString(),
-// //                         style: TextStyle(color: Colors.red),
-// //                       ),
-// //                       qrCodeCallback: (code) {
-// //                         setState(() {
-// //                           qr = code;
-// //                         });
-// //                       },
-// //                       child: Container(
-// //                         decoration: BoxDecoration(
-// //                           color: Colors.transparent,
-// //                           border: Border.all(
-// //                               color: Colors.orange,
-// //                               width: 10.0,
-// //                               style: BorderStyle.solid),
-// //                         ),
-// //                       ),
-// //                     ),
-// //                   ),
-// //                 )
-// //                     : Center(child: Text("Camera inactive"))),
-// //             Text("QRCODE: $qr"),
-// //           ],
-// //         ),
-// //       ),
-// //       floatingActionButton: FloatingActionButton(
-// //           child: Text(
-// //             "press me",
-// //             textAlign: TextAlign.center,
-// //           ),
-// //           onPressed: () {
-// //             setState(() {
-// //               camState = !camState;
-// //             });
-// //           }),
-// //     );
-// //   }
-// // }
+class BarcodeScannerWithOverlay extends StatefulWidget {
+  const BarcodeScannerWithOverlay({super.key});
+
+  @override
+  _BarcodeScannerWithOverlayState createState() =>
+      _BarcodeScannerWithOverlayState();
+}
+
+class _BarcodeScannerWithOverlayState extends State<BarcodeScannerWithOverlay> {
+  final MobileScannerController controller = MobileScannerController(
+    formats: const [BarcodeFormat.qrCode],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final scanWindow = Rect.fromCenter(
+      center: MediaQuery.sizeOf(context).center(Offset.zero),
+      width: 200,
+      height: 200,
+    );
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Scanner with Overlay Example app'),
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: MobileScanner(
+              fit: BoxFit.contain,
+              controller: controller,
+              scanWindow: scanWindow,
+              errorBuilder: (context, error, child) {
+                return ScannerErrorWidget(error: error);
+              },
+              overlayBuilder: (context, constraints) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ScannedBarcodeLabel(barcodes: controller.barcodes),
+                  ),
+                );
+              },
+            ),
+          ),
+          ValueListenableBuilder(
+            valueListenable: controller,
+            builder: (context, value, child) {
+              if (!value.isInitialized ||
+                  !value.isRunning ||
+                  value.error != null) {
+                return const SizedBox();
+              }
+
+              return CustomPaint(
+                painter: ScannerOverlay(scanWindow: scanWindow),
+              );
+            },
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ToggleFlashlightButton(controller: controller),
+                  SwitchCameraButton(controller: controller),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<void> dispose() async {
+    super.dispose();
+    await controller.dispose();
+  }
+}
+
+class ScannerOverlay extends CustomPainter {
+  const ScannerOverlay({
+    required this.scanWindow,
+    this.borderRadius = 12.0,
+  });
+
+  final Rect scanWindow;
+  final double borderRadius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // we need to pass the size to the custom paint widget
+    final backgroundPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final cutoutPath = Path()
+      ..addRRect(
+        RRect.fromRectAndCorners(
+          scanWindow,
+          topLeft: Radius.circular(borderRadius),
+          topRight: Radius.circular(borderRadius),
+          bottomLeft: Radius.circular(borderRadius),
+          bottomRight: Radius.circular(borderRadius),
+        ),
+      );
+
+    final backgroundPaint = Paint()
+      ..color = const Color.fromRGBO(0, 0, 0, 0.5)
+      ..style = PaintingStyle.fill
+      ..blendMode = BlendMode.dstOver;
+
+    final backgroundWithCutout = Path.combine(
+      PathOperation.difference,
+      backgroundPath,
+      cutoutPath,
+    );
+
+    final borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.0;
+
+    final borderRect = RRect.fromRectAndCorners(
+      scanWindow,
+      topLeft: Radius.circular(borderRadius),
+      topRight: Radius.circular(borderRadius),
+      bottomLeft: Radius.circular(borderRadius),
+      bottomRight: Radius.circular(borderRadius),
+    );
+
+    // First, draw the background,
+    // with a cutout area that is a bit larger than the scan window.
+    // Finally, draw the scan window itself.
+    canvas.drawPath(backgroundWithCutout, backgroundPaint);
+    canvas.drawRRect(borderRect, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(ScannerOverlay oldDelegate) {
+    return scanWindow != oldDelegate.scanWindow ||
+        borderRadius != oldDelegate.borderRadius;
+  }
+}

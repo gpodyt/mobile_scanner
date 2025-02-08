@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ScannerErrorWidget extends StatelessWidget {
-  const ScannerErrorWidget({Key? key, required this.error}) : super(key: key);
+  const ScannerErrorWidget({super.key, required this.error});
 
   final MobileScannerException error;
 
@@ -13,13 +13,12 @@ class ScannerErrorWidget extends StatelessWidget {
     switch (error.errorCode) {
       case MobileScannerErrorCode.controllerUninitialized:
         errorMessage = 'Controller not ready.';
-        break;
       case MobileScannerErrorCode.permissionDenied:
         errorMessage = 'Permission denied';
-        break;
+      case MobileScannerErrorCode.unsupported:
+        errorMessage = 'Scanning is unsupported on this device';
       default:
         errorMessage = 'Generic Error';
-        break;
     }
 
     return ColoredBox(

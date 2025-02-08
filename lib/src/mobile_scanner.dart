@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/src/mobile_scanner_controller.dart';
 import 'package:mobile_scanner/src/mobile_scanner_exception.dart';
+import 'package:mobile_scanner/src/mobile_scanner_platform_interface.dart';
 import 'package:mobile_scanner/src/objects/barcode_capture.dart';
-import 'package:mobile_scanner/src/objects/mobile_scanner_arguments.dart';
+import 'package:mobile_scanner/src/objects/mobile_scanner_state.dart';
+import 'package:mobile_scanner/src/scan_window_calculation.dart';
 
 /// The function signature for the error builder.
 typedef MobileScannerErrorBuilder = Widget Function(
@@ -14,18 +15,41 @@ typedef MobileScannerErrorBuilder = Widget Function(
   Widget?,
 );
 
-/// The [MobileScanner] widget displays a live camera preview.
+/// This widget displays a live camera preview for the barcode scanner.
 class MobileScanner extends StatefulWidget {
-  /// The controller that manages the barcode scanner.
-  ///
-  /// If this is null, the scanner will manage its own controller.
+  /// Create a new [MobileScanner] using the provided [controller].
+  const MobileScanner({
+    this.controller,
+    this.onDetect,
+    this.onDetectError = _onDetectErrorHandler,
+    this.fit = BoxFit.cover,
+    this.errorBuilder,
+    this.overlayBuilder,
+    this.placeholderBuilder,
+    this.scanWindow,
+    this.scanWindowUpdateThreshold = 0.0,
+    super.key,
+  });
+
+  /// The controller for the camera preview.
   final MobileScannerController? controller;
 
-  /// The function that builds an error widget when the scanner
-  /// could not be started.
+  /// The function that signals when new codes were detected by the [controller].
   ///
-  /// If this is null, defaults to a black [ColoredBox]
-  /// with a centered white [Icons.error] icon.
+  /// To handle both [BarcodeCapture]s and [MobileScannerBarcodeException]s,
+  /// use the [MobileScannerController.barcodes] stream directly (recommended),
+  /// or provide a function to [onDetectError].
+  final void Function(BarcodeCapture barcodes)? onDetect;
+
+  /// The error handler equivalent for the [onDetect] function.
+  ///
+  /// If [onDetect] is not null, and this is null, errors are silently ignored.
+  final void Function(Object error, StackTrace stackTrace) onDetectError;
+
+  /// The error builder for the camera preview.
+  ///
+  /// If this is null, a black [ColoredBox],
+  /// with a centered white [Icons.error] icon is used as error widget.
   final MobileScannerErrorBuilder? errorBuilder;
 
   /// The [BoxFit] for the camera preview.
@@ -33,243 +57,199 @@ class MobileScanner extends StatefulWidget {
   /// Defaults to [BoxFit.cover].
   final BoxFit fit;
 
-  /// The function that signals when new codes were detected by the [controller].
-  final void Function(BarcodeCapture barcodes) onDetect;
+  /// The builder for the overlay above the camera preview.
+  ///
+  /// The resulting widget can be combined with the [scanWindow] rectangle
+  /// to create a cutout for the camera preview.
+  ///
+  /// The [BoxConstraints] for this builder
+  /// are the same constraints that are used to compute the effective [scanWindow].
+  ///
+  /// The overlay is only displayed when the camera preview is visible.
+  final LayoutWidgetBuilder? overlayBuilder;
 
-  /// The function that signals when the barcode scanner is started.
-  @Deprecated('Use onScannerStarted() instead.')
-  final void Function(MobileScannerArguments? arguments)? onStart;
-
-  /// The function that signals when the barcode scanner is started.
-  final void Function(MobileScannerArguments? arguments)? onScannerStarted;
-
-  /// The function that builds a placeholder widget when the scanner
-  /// is not yet displaying its camera preview.
+  /// The placeholder builder for the camera preview.
   ///
   /// If this is null, a black [ColoredBox] is used as placeholder.
+  ///
+  /// The placeholder is displayed when the camera preview is being initialized.
   final Widget Function(BuildContext, Widget?)? placeholderBuilder;
 
-  /// if set barcodes will only be scanned if they fall within this [Rect]
-  /// useful for having a cut-out overlay for example. these [Rect]
-  /// coordinates are relative to the widget size, so by how much your
-  /// rectangle overlays the actual image can depend on things like the
-  /// [BoxFit]
+  /// The scan window rectangle for the barcode scanner.
+  ///
+  /// If this is not null, the barcode scanner will only scan barcodes
+  /// which intersect this rectangle.
+  ///
+  /// This rectangle is relative to the layout size
+  /// of the *camera preview widget* in the widget tree,
+  /// rather than the actual size of the camera preview output.
+  /// This is because the size of the camera preview widget
+  /// might not be the same as the size of the camera output.
+  ///
+  /// For example, the applied [fit] has an effect on the size of the camera preview widget,
+  /// while the camera preview size remains the same.
+  ///
+  /// The following example shows a scan window that is centered,
+  /// fills half the height and one third of the width of the layout:
+  ///
+  /// ```dart
+  /// LayoutBuider(
+  ///   builder: (BuildContext context, BoxConstraints constraints) {
+  ///     final Size layoutSize = constraints.biggest;
+  ///
+  ///     final double scanWindowWidth = layoutSize.width / 3;
+  ///     final double scanWindowHeight = layoutSize.height / 2;
+  ///
+  ///     final Rect scanWindow = Rect.fromCenter(
+  ///       center: layoutSize.center(Offset.zero),
+  ///       width: scanWindowWidth,
+  ///       height: scanWindowHeight,
+  ///     );
+  ///   }
+  /// );
+  /// ```
   final Rect? scanWindow;
 
-  /// Only set this to true if you are starting another instance of mobile_scanner
-  /// right after disposing the first one, like in a PageView.
+  /// The threshold for updates to the [scanWindow].
   ///
-  /// Default: false
-  final bool startDelay;
-
-  /// Create a new [MobileScanner] using the provided [controller]
-  /// and [onBarcodeDetected] callback.
-  const MobileScanner({
-    this.controller,
-    this.errorBuilder,
-    this.fit = BoxFit.cover,
-    required this.onDetect,
-    @Deprecated('Use onScannerStarted() instead.') this.onStart,
-    this.onScannerStarted,
-    this.placeholderBuilder,
-    this.scanWindow,
-    this.startDelay = false,
-    super.key,
-  });
+  /// If the [scanWindow] would be updated,
+  /// due to new layout constraints for the scanner,
+  /// and the width or height of the new scan window have not changed by this threshold,
+  /// then the scan window is not updated.
+  ///
+  /// It is recommended to set this threshold
+  /// if scan window updates cause performance issues.
+  ///
+  /// Defaults to no threshold for scan window updates.
+  final double scanWindowUpdateThreshold;
 
   @override
   State<MobileScanner> createState() => _MobileScannerState();
+
+  /// This empty function is used as the default error handler for [onDetect].
+  static void _onDetectErrorHandler(Object error, StackTrace stackTrace) {
+    // Do nothing.
+  }
 }
 
 class _MobileScannerState extends State<MobileScanner>
     with WidgetsBindingObserver {
-  /// The subscription that listens to barcode detection.
-  StreamSubscription<BarcodeCapture>? _barcodesSubscription;
+  late final controller = widget.controller ?? MobileScannerController();
 
-  /// The internally managed controller.
-  late MobileScannerController _controller;
-
-  /// Whether the controller should resume
-  /// when the application comes back to the foreground.
-  bool _resumeFromBackground = false;
-
-  MobileScannerException? _startException;
-
-  Widget _buildPlaceholderOrError(BuildContext context, Widget? child) {
-    final error = _startException;
-
-    if (error != null) {
-      return widget.errorBuilder?.call(context, error, child) ??
-          const ColoredBox(
-            color: Colors.black,
-            child: Center(child: Icon(Icons.error, color: Colors.white)),
-          );
-    }
-
-    return widget.placeholderBuilder?.call(context, child) ??
-        const ColoredBox(color: Colors.black);
-  }
-
-  /// Start the given [scanner].
-  Future<void> _startScanner() async {
-    if (widget.startDelay) {
-      await Future.delayed(const Duration(seconds: 1, milliseconds: 500));
-    }
-
-    _barcodesSubscription ??= _controller.barcodes.listen(
-      widget.onDetect,
-    );
-
-    if (!_controller.autoStart) {
-      debugPrint(
-        'mobile_scanner: not starting automatically because autoStart is set to false in the controller.',
-      );
-      return;
-    }
-
-    _controller.start().then((arguments) {
-      // ignore: deprecated_member_use_from_same_package
-      widget.onStart?.call(arguments);
-      widget.onScannerStarted?.call(arguments);
-    }).catchError((error) {
-      debugPrint('mobile_scanner: $error');
-      if (mounted) {
-        setState(() {
-          _startException = error as MobileScannerException;
-        });
-      }
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _controller = widget.controller ?? MobileScannerController();
-    _startScanner();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // App state changed before the controller was initialized.
-    if (_controller.isStarting) {
-      return;
-    }
-
-    switch (state) {
-      case AppLifecycleState.resumed:
-        _resumeFromBackground = false;
-        _startScanner();
-        break;
-      case AppLifecycleState.paused:
-        _resumeFromBackground = true;
-        break;
-      case AppLifecycleState.inactive:
-        if (!_resumeFromBackground) {
-          _controller.stop();
-        }
-        break;
-      case AppLifecycleState.detached:
-        break;
-    }
-  }
-
-  /// the [scanWindow] rect will be relative and scaled to the [widgetSize] not the texture. so it is possible,
-  /// depending on the [fit], for the [scanWindow] to partially or not at all overlap the [textureSize]
-  ///
-  /// since when using a [BoxFit] the content will always be centered on its parent. we can convert the rect
-  /// to be relative to the texture.
-  ///
-  /// since the textures size and the actuall image (on the texture size) might not be the same, we also need to
-  /// calculate the scanWindow in terms of percentages of the texture, not pixels.
-  Rect calculateScanWindowRelativeToTextureInPercentage(
-    BoxFit fit,
-    Rect scanWindow,
-    Size textureSize,
-    Size widgetSize,
-  ) {
-    /// map the texture size to get its new size after fitted to screen
-    final fittedTextureSize = applyBoxFit(fit, textureSize, widgetSize);
-
-    /// create a new rectangle that represents the texture on the screen
-    final minX = widgetSize.width / 2 - fittedTextureSize.destination.width / 2;
-    final minY =
-        widgetSize.height / 2 - fittedTextureSize.destination.height / 2;
-    final textureWindow = Offset(minX, minY) & fittedTextureSize.destination;
-
-    /// create a new scan window and with only the area of the rect intersecting the texture window
-    final scanWindowInTexture = scanWindow.intersect(textureWindow);
-
-    /// update the scanWindow left and top to be relative to the texture not the widget
-    final newLeft = scanWindowInTexture.left - textureWindow.left;
-    final newTop = scanWindowInTexture.top - textureWindow.top;
-    final newWidth = scanWindowInTexture.width;
-    final newHeight = scanWindowInTexture.height;
-
-    /// new scanWindow that is adapted to the boxfit and relative to the texture
-    final windowInTexture = Rect.fromLTWH(newLeft, newTop, newWidth, newHeight);
-
-    /// get the scanWindow as a percentage of the texture
-    final percentageLeft =
-        windowInTexture.left / fittedTextureSize.destination.width;
-    final percentageTop =
-        windowInTexture.top / fittedTextureSize.destination.height;
-    final percentageRight =
-        windowInTexture.right / fittedTextureSize.destination.width;
-    final percentagebottom =
-        windowInTexture.bottom / fittedTextureSize.destination.height;
-
-    /// this rectangle can be send to native code and used to cut out a rectangle of the scan image
-    return Rect.fromLTRB(
-      percentageLeft,
-      percentageTop,
-      percentageRight,
-      percentagebottom,
-    );
-  }
-
+  /// The current scan window.
   Rect? scanWindow;
+
+  /// Calculate the scan window based on the given [constraints].
+  ///
+  /// If the [scanWindow] is already set, this method does nothing.
+  void _maybeUpdateScanWindow(
+    MobileScannerState scannerState,
+    BoxConstraints constraints,
+  ) {
+    if (widget.scanWindow == null) {
+      return;
+    }
+
+    final Rect newScanWindow = calculateScanWindowRelativeToTextureInPercentage(
+      widget.fit,
+      widget.scanWindow!,
+      textureSize: scannerState.size,
+      widgetSize: constraints.biggest,
+    );
+
+    // The scan window was never set before.
+    // Set the initial scan window.
+    if (scanWindow == null) {
+      scanWindow = newScanWindow;
+
+      unawaited(controller.updateScanWindow(scanWindow));
+
+      return;
+    }
+
+    // The scan window did not not change.
+    // The left, right, top and bottom are the same.
+    if (scanWindow == newScanWindow) {
+      return;
+    }
+
+    // The update threshold is not set, allow updating the scan window.
+    if (widget.scanWindowUpdateThreshold == 0.0) {
+      scanWindow = newScanWindow;
+
+      unawaited(controller.updateScanWindow(scanWindow));
+
+      return;
+    }
+
+    final double dx = (newScanWindow.width - scanWindow!.width).abs();
+    final double dy = (newScanWindow.height - scanWindow!.height).abs();
+
+    // The new scan window has changed enough, allow updating the scan window.
+    if (dx >= widget.scanWindowUpdateThreshold ||
+        dy >= widget.scanWindowUpdateThreshold) {
+      scanWindow = newScanWindow;
+
+      unawaited(controller.updateScanWindow(scanWindow));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return ValueListenableBuilder<MobileScannerArguments?>(
-          valueListenable: _controller.startArguments,
-          builder: (context, value, child) {
-            if (value == null) {
-              return _buildPlaceholderOrError(context, child);
-            }
+    return ValueListenableBuilder<MobileScannerState>(
+      valueListenable: controller,
+      builder: (BuildContext context, MobileScannerState value, Widget? child) {
+        if (!value.isInitialized) {
+          const Widget defaultPlaceholder = ColoredBox(color: Colors.black);
 
-            if (widget.scanWindow != null && scanWindow == null) {
-              scanWindow = calculateScanWindowRelativeToTextureInPercentage(
-                widget.fit,
-                widget.scanWindow!,
-                value.size,
-                Size(constraints.maxWidth, constraints.maxHeight),
-              );
+          return widget.placeholderBuilder?.call(context, child) ??
+              defaultPlaceholder;
+        }
 
-              _controller.updateScanWindow(scanWindow);
-            }
+        final MobileScannerException? error = value.error;
 
-            return ClipRect(
-              child: LayoutBuilder(
-                builder: (_, constraints) {
-                  return SizedBox.fromSize(
-                    size: constraints.biggest,
-                    child: FittedBox(
-                      fit: widget.fit,
-                      child: SizedBox(
-                        width: value.size.width,
-                        height: value.size.height,
-                        child: kIsWeb
-                            ? HtmlElementView(viewType: value.webId!)
-                            : Texture(textureId: value.textureId!),
-                      ),
-                    ),
-                  );
-                },
+        if (error != null) {
+          const Widget defaultError = ColoredBox(
+            color: Colors.black,
+            child: Center(child: Icon(Icons.error, color: Colors.white)),
+          );
+
+          return widget.errorBuilder?.call(context, error, child) ??
+              defaultError;
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            _maybeUpdateScanWindow(value, constraints);
+
+            final Widget? overlay =
+                widget.overlayBuilder?.call(context, constraints);
+            final Size cameraPreviewSize = value.size;
+
+            final Widget scannerWidget = ClipRect(
+              child: SizedBox.fromSize(
+                size: constraints.biggest,
+                child: FittedBox(
+                  fit: widget.fit,
+                  child: SizedBox(
+                    width: cameraPreviewSize.width,
+                    height: cameraPreviewSize.height,
+                    child: MobileScannerPlatform.instance.buildCameraView(),
+                  ),
+                ),
               ),
+            );
+
+            if (overlay == null) {
+              return scannerWidget;
+            }
+
+            return Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                scannerWidget,
+                overlay,
+              ],
             );
           },
         );
@@ -277,13 +257,69 @@ class _MobileScannerState extends State<MobileScanner>
     );
   }
 
+  StreamSubscription? _subscription;
+
+  @override
+  void initState() {
+    if (widget.onDetect != null) {
+      WidgetsBinding.instance.addObserver(this);
+      _subscription = controller.barcodes.listen(
+        widget.onDetect,
+        onError: widget.onDetectError,
+        cancelOnError: false,
+      );
+    }
+    if (controller.autoStart) {
+      controller.start();
+    }
+    super.initState();
+  }
+
   @override
   void dispose() {
-    _controller.updateScanWindow(null);
-    WidgetsBinding.instance.removeObserver(this);
-    _barcodesSubscription?.cancel();
-    _barcodesSubscription = null;
-    _controller.dispose();
     super.dispose();
+
+    if (_subscription != null) {
+      _subscription!.cancel();
+      _subscription = null;
+    }
+
+    if (controller.autoStart) {
+      controller.stop();
+    }
+    // When this widget is unmounted, reset the scan window.
+    unawaited(controller.updateScanWindow(null));
+
+    // Dispose default controller if not provided by user
+    if (widget.controller == null) {
+      controller.dispose();
+      WidgetsBinding.instance.removeObserver(this);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (widget.controller != null || !controller.value.hasCameraPermission) {
+      return;
+    }
+
+    switch (state) {
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        return;
+      case AppLifecycleState.resumed:
+        _subscription = controller.barcodes.listen(
+          widget.onDetect,
+          onError: widget.onDetectError,
+          cancelOnError: false,
+        );
+
+        unawaited(controller.start());
+      case AppLifecycleState.inactive:
+        unawaited(_subscription?.cancel());
+        _subscription = null;
+        unawaited(controller.stop());
+    }
   }
 }
