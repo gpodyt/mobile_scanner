@@ -78,29 +78,6 @@ public class MobileScanner: NSObject, AVCaptureVideoDataOutputSampleBufferDelega
     ///
     /// This function selects the most appropriate camera, when it is available.
     private func getDefaultCameraDevice(position: AVCaptureDevice.Position) -> AVCaptureDevice? {
-        if #available(iOS 13.0, *) {
-            // Find the built-in Triple Camera, if it exists.
-            if let device = AVCaptureDevice.default(.builtInTripleCamera,
-                                                    for: .video,
-                                                    position: position) {
-                return device
-            }
-            
-            // Find the built-in Dual-Wide Camera, if it exists.
-            if let device = AVCaptureDevice.default(.builtInDualWideCamera,
-                                                    for: .video,
-                                                    position: position) {
-                return device
-            }
-        }
-        
-        // Find the built-in Dual Camera, if it exists.
-        if let device = AVCaptureDevice.default(.builtInDualCamera,
-                                                for: .video,
-                                                position: position) {
-            return device
-        }
-        
         // Find the built-in Wide-Angle Camera, if it exists.
         if let device = AVCaptureDevice.default(.builtInWideAngleCamera,
                                                 for: .video,
