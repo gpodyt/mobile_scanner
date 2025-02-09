@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.hardware.display.DisplayManager
+import android.hardware.camera2.CaptureRequest
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -14,6 +15,7 @@ import android.util.Size
 import android.view.Surface
 import android.view.WindowManager
 import androidx.annotation.VisibleForTesting
+import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -323,6 +325,35 @@ class MobileScanner(
 
             // Build the preview to be shown on the Flutter texture
             val previewBuilder = Preview.Builder()
+
+            // Use Camera2Interop to modify CameraX settings
+            val camera2Builder = Camera2Interop.Extender(previewBuilder)
+            // Disable auto-exposure
+            camera2Builder.setCaptureRequestOption(
+                CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF
+            )
+
+            // Set manual exposure (100ms = 100,000,000ns)
+            camera2Builder.setCaptureRequestOption(
+                CaptureRequest.SENSOR_EXPOSURE_TIME, 100000000L
+            )
+
+            // Set manual ISO (Lower = less noise)
+            camera2Builder.setCaptureRequestOption(
+                CaptureRequest.SENSOR_SENSITIVITY, 100
+            )
+
+            // Disable auto-focus and set fixed focus
+            camera2Builder.setCaptureRequestOption(
+                CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF
+            )
+            camera2Builder.setCaptureRequestOption(
+                CaptureRequest.LENS_FOCUS_DISTANCE, 0.3f
+            )
+            camera2Builder.setCaptureRequestOption(
+                CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START
+            )
+
             preview = previewBuilder.build().apply { setSurfaceProvider(surfaceProvider) }
 
             // Build the analyzer to be passed on to MLKit
